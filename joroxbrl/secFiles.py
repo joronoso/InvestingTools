@@ -3,10 +3,14 @@ import json
 from joroxbrl.core import Fact
 import joroxbrl.secGov
 import logging
-
-companyfactsDir = 'secInfo/companyfacts/'
-submissionsDir = 'secInfo/submissions/'
-secDocAccessUrl = 'https://www.sec.gov/Archives/edgar/data'
+import requests
+import sys
+import os
+companyfactsDir = None #'secInfo/companyfacts/' # If left empty, it will be retrieved from the SEC
+submissionsDir = None #'secInfo/submissions/' # If left empty, it will be retrieved from the SEC
+companyfactsUrl = 'https://data.sec.gov/api/xbrl/companyfacts/'
+submissionsUrl = 'https://data.sec.gov/submissions/'
+secDocAccessUrl = 'https://www.sec.gov/Archives/edgar/data/'
 
 class Filing:
     """
@@ -65,13 +69,37 @@ class Filing:
         return cls.getFilingByTypeAndDate(cik, submissionType, None)
 
     @classmethod
+    def getSubmission(cls, cik: str):
+        if submissionsDir:
+            with open(submissionsDir+'CIK'+cik+'.json') as jFile:
+                jSubm = json.load(jFile)
+        else:
+            # We are going to download the submissions
+            url = submissionsUrl+'CIK'+cik+'.json'
+            try:
+                resp = requests.get(url, headers={
+                    "User-agent": os.getenv('SEC_USER_AGENT'),
+                    "Accept-Encoding": "gzip, deflate",
+                    "Host": "data.sec.gov",
+                },)
+                if resp.status_code == 200:
+                    jSubm = resp.json()
+                else:
+                    logging.error('joroxbrl.secFiles.Filing.getSubmission: Could not download company submissions file from '+url)
+                    logging.debug(resp)
+                    jSubm = None
+            except Exception as e:
+                logging.error(e+'\njoroxbrl.secFiles.Filing.getSubmission: Could not download company submissions file for '+cik)
+                jSubm = None
+        return jSubm
+
+    @classmethod
     def getFilingByTypeAndDate(cls, cik:str, submissionType: str, reportDate: str):
         if submissionType not in cls._acceptableSubmissionTypes:
             print(submissionType+' is not an acceptable submission type')
             return None
         cik = cls.correctCIK(cik)
-        with open(submissionsDir+'CIK'+cik+'.json') as jFile:
-            jSubms = json.load(jFile)
+        jSubms = cls.getSubmission(cik)
 
         # Assume the submissions appear in inverse chronological order
         found = False
@@ -104,12 +132,10 @@ class Filing:
         
     @classmethod
     # isXBRL: If TRUE, 
-    def getListFilings(cls, cik:str, submissionTypes:[str], isXBRL:bool=False):
+    def getListFilings(cls, cik:str, submissionTypes:list[str], isXBRL:bool=False):
         listFilings = []
         cik = cls.correctCIK(cik)
-        # We may want to add the historic files?
-        with open(submissionsDir+'CIK'+cik+'.json') as jFile:
-            jSubms = json.load(jFile)
+        jSubms = cls.getSubmission(cik)
 
         for idx, x in enumerate(jSubms['filings']['recent']['form']):
             # print(idx, x, x in submissionTypes, jSubms['filings']['recent']['isXBRL'][idx])
@@ -138,9 +164,7 @@ class Filing:
     @classmethod
     def getFilingByAccession(cls, cik:str, accessionNumber:str):
         cik = cls.correctCIK(cik)
-        # We may want to add the historic files?
-        with open(submissionsDir+'CIK'+cik+'.json') as jFile:
-            jSubms = json.load(jFile)
+        jSubms = cls.getSubmission(cik)
 
         for idx, x in enumerate(jSubms['filings']['recent']['accessionNumber']):
             if x==accessionNumber:
@@ -161,15 +185,14 @@ class Filing:
                            jSubms['filings']['recent']['primaryDocDescription'][idx])
         logging.warning('joroxbrl.secFiles.Filing.getFilingByAccession: Could not find entry for '+cik+' - '+accessionNumber)
                 
-        
-    
+                
     def getPrimaryDocumentUrl(self) -> str:
-        url = (secDocAccessUrl+'/'+str(int(self.cik))+'/'+
+        url = (secDocAccessUrl+str(int(self.cik))+'/'+
                self.accessionNumber.replace('-', '')+'/'+self.primaryDocument)
         return url
     
     def getFilingUrl(self) -> str:
-        url = (secDocAccessUrl+'/'+str(int(self.cik))+'/'+
+        url = (secDocAccessUrl+str(int(self.cik))+'/'+
                self.accessionNumber.replace('-', '')+'/'+
                self.accessionNumber+'-index.htm')
         return url
@@ -185,26 +208,23 @@ class Filing:
 def getFactsActualGlobal(cik: str, facts: list[str]) -> dict:
     # # First we are going to identify the document we are interested in, 
     # #  and the period, using the submissions file
-    # with open(submissionsDir+'CIK'+cik+'.json') as jFile:
-    #     jSubms = json.load(jFile)
-    # found = False
-    # # Assume the submissions appear in inverse chronological order
-    # for idx, x in enumerate(jSubms['filings']['recent']['form']):
-    #     if x == '10-K':
-    #         found = True
-    #         break
-    # if not found:
-    #     raise Exception('Could not find 10-K for '+cik)
-    # accessionNumber = jSubms['filings']['recent']['accessionNumber'][idx]
-    # reportDate = jSubms['filings']['recent']['reportDate'][idx]
-    # docUrl = (secDocAccessUrl+'/'+str(int(cik))+'/'+accessionNumber.replace('-', '')+
-    #           '/'+jSubms['filings']['recent']['primaryDocument'][idx])
-    # print(idx, accessionNumber, reportDate)
-    # print(docUrl)
     filing = Filing.getLatestFiling(cik, '10-K')
     
-    with open(companyfactsDir+'CIK'+filing.cik+'.json') as jFile:
-        jFacts = json.load(jFile)
+    if companyfactsDir:
+        with open(companyfactsDir+'CIK'+filing.cik+'.json') as jFile:
+            jFacts = json.load(jFile)
+    else:
+        # We are going to download the company facts file
+        url = companyfactsUrl+'CIK'+filing.cik+'.json'
+        try:
+            jFacts = requests.get(url, headers={
+                "User-agent": os.getenv('SEC_USER_AGENT'),
+                "Accept-Encoding": "gzip, deflate",
+                "Host": "data.sec.gov",
+            },).text 
+        except requests.exceptions.RequestException as e:
+            logging.error('joroxbrl.secFiles.getFactsActualGlobal: Could not download company facts file for '+cik)
+            sys.exit(1)
     result = {}
     for f in facts:
         fsplit = f.split(':')
@@ -218,8 +238,7 @@ def getFactsActualGlobal(cik: str, facts: list[str]) -> dict:
                     print('Hemos metido: '+result[f].getDescription())
     return result
 
-def getTickersFromCIK(cik: str) -> [str]:
+def getTickersFromCIK(cik: str) -> list[str]:
     cik = Filing.correctCIK(cik)
-    with open(submissionsDir+'CIK'+cik+'.json') as jFile:
-        jSubms = json.load(jFile)    
+    jSubms = Filing.getSubmission(cik)
     return jSubms['tickers']

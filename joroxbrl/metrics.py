@@ -4,8 +4,7 @@ import polygon
 import time
 import datetime
 import joroxbrl.secGov
-
-_PolygonKey = '' # Insert your Polygon Key here
+import os
 
 class MetricCalculator:
 
@@ -387,8 +386,6 @@ class MetricCalculator:
             else: 
                 logging.warning('There is no AmortizationOfIntangibleAssets for '+self.company+'!!!')
             
-        
-        
         logging.debug('AFCF before undoing working capital changes: '+str(temp))
         # Reverse changes in working capital
         cwc = 0
@@ -421,8 +418,8 @@ class MetricCalculator:
         try:
             td = PolygonCaller.get_ticker_details(ticker, date) if getPrice else None
             logging.debug(td)
-        except:
-            logging.error('Error getting the ticker details for '+str(ticker))
+        except Exception as ex:
+            logging.error(str(ex)+'\nError getting the ticker details for '+str(ticker))
             td = None
         self.concepts['SharesOutstanding'] = float(td.share_class_shares_outstanding) if td is not None and td.share_class_shares_outstanding is not None else 0
         self.concepts['MarketCap'] = float(td.market_cap) if td is not None and td.market_cap is not None else 0
@@ -508,10 +505,12 @@ class PolygonCaller:
     
     @classmethod
     def get_ticker_details(cls, ticker:str, date:str=None):
+        logging.debug('PolygonCaller.get_ticker_details('+ticker+','+str(date)+')')
         cls._callLimit()
         # In some cases, when SEC includes a - in the ticker, Polygon prefers a .
         ticker = ticker.replace('-', '.')
-        return polygon.RESTClient(_PolygonKey).get_ticker_details(ticker, date=date, params={'date': date})
+        params = {'date': date} if date is not None else {}
+        return polygon.RESTClient(os.getenv('POLYGON_KEY')).get_ticker_details(ticker, date=date, params=params)
     
     @classmethod
     def _callLimit(cls):
