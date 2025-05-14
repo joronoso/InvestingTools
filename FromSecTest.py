@@ -1,9 +1,12 @@
 # This will generate the metrics for the last 10-K of a single company.
 # Useful for debugging problems extracting a single filing.
-import joroxbrl.secGov
 import joroxbrl.secFiles
-import joroxbrl.core
 import joroxbrl.metrics
+import logging
+from dotenv import load_dotenv
+
+logging.basicConfig(level=logging.DEBUG)
+load_dotenv()
 
 filing = joroxbrl.secFiles.Filing.getLatestFiling('1013934', '10-K')
 m = joroxbrl.metrics.MetricCalculator()

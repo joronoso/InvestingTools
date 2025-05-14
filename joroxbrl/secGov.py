@@ -11,6 +11,7 @@ from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 import datetime
 import time
+import os
 
 _baseUrl = 'https://www.sec.gov'
 
@@ -34,7 +35,11 @@ class SecGovCaller:
 
         cls._callLimit()
 
-        return cls._session.get(url, headers={'User-agent': 'Mozilla/5.0'})
+        return cls._session.get(url, headers={
+                "User-agent": os.getenv('SEC_USER_AGENT'),
+                "Accept-Encoding": "gzip, deflate",
+                "Host": "www.sec.gov",
+            })
     
     @classmethod
     def _callLimit(cls):

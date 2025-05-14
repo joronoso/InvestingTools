@@ -2,14 +2,13 @@ from bs4 import BeautifulSoup
 import re
 import logging
 import xml.etree.ElementTree as ET
-import requests
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 import joroxbrl.secGov
 
 
-reNumber = re.compile('^(\+|-)?\d\d?\d?(\d*|(,\d{3})*)(\.\d+)?$')
-reFactName = re.compile('^\{(.*)\}(.*)')
+reNumber = re.compile(r'^(\+|-)?\d\d?\d?(\d*|(,\d{3})*)(\.\d+)?$')
+reFactName = re.compile(r'^\{(.*)\}(.*)')
 log = logging.getLogger('joroxbrl.core')
 
 
@@ -74,7 +73,6 @@ class IXBRL:
     _numerator = 0
 
     def _contextHandler(self, element):
-        print('Entering _contextHandler for '+element['id'])
         context = Context(element['id'])
         
         for i in element.find_all('xbrldi:explicitmember'):
@@ -237,7 +235,7 @@ class XBRL:
         self.factCounter = 0 # Unlike iXBRL, facts don't have ids, so we'll just add a counter
         
         # In the namespaces dict we will expect to create up to 6 entries when 
-        #  reading and xml: 'us-gaap', 'us-gaap-sup', 'dei', 'srt', 'invest' and 'local'
+        #  reading and xml: 'us-gaap', 'us-gaap-sup', 'dei', 'srt', 'invest', 'ecd', 'cyd' and 'local'
         # I don't know what invest is for. Found it for the 1st time in /Archives/edgar/data/320193/000032019317000070/aapl-20170930.xml
         self.namespaces = {}
         
@@ -273,46 +271,56 @@ class XBRL:
                 # All the rest should be facts
                 f = self._factHandler(element)
                 namespaces.add(f.namespace)
-        log.debug('These are the namespaces we\'ve found: '+str(namespaces))
+        log.debug("These are the namespaces we've found: "+str(namespaces))
         
         # Now we try to identify the namespaces
-        if len(namespaces)>6: 
-            raise Exception('More than 6 namespaces found in XBRL facts: '+str(namespaces))
+        if len(namespaces)>8: 
+            raise Exception('More than 8 namespaces found in XBRL facts: '+str(namespaces))
         for n in namespaces:
             if n is None:
                 if 'local' in self.namespaces:
-                    raise Exception('There\'s more than one local namespace: '+str(namespaces))
+                    raise Exception("There's more than one local namespace: "+str(namespaces))
                 else:
                     self.namespaces['local'] = None
             elif '/us-gaap/' in n:
                 if 'us-gaap' in self.namespaces:
-                    raise Exception('There\'s more than one us-gaap namespace: '+str(namespaces))
+                    raise Exception("There's more than one us-gaap namespace: "+str(namespaces))
                 else:
                     self.namespaces['us-gaap'] = n
             elif '/us-gaap-sup/' in n:
                 if 'us-gaap-sup' in self.namespaces:
-                    raise Exception('There\'s more than one us-gaap-sup namespace: '+str(namespaces))
+                    raise Exception("There's more than one us-gaap-sup namespace: "+str(namespaces))
                 else:
                     self.namespaces['us-gaap-sup'] = n
             elif '/dei/' in n:
                 if 'dei' in self.namespaces:
-                    raise Exception('There\'s more than one dei namespace: '+str(namespaces))
+                    raise Exception("There's more than one dei namespace: "+str(namespaces))
                 else:
                     self.namespaces['dei'] = n
             elif '/srt/' in n:
                 if 'srt' in self.namespaces:
-                    raise Exception('There\'s more than one srt namespace: '+str(namespaces))
+                    raise Exception("There's more than one srt namespace: "+str(namespaces))
                 else:
                     self.namespaces['srt'] = n
-                    
+            elif '/ecd/' in n:
+                if 'ecd' in self.namespaces:
+                    raise Exception("There's more than one ecd namespace: "+str(namespaces))
+                else:
+                    self.namespaces['ecd'] = n
+            elif '/cyd/' in n:
+                if 'cyd' in self.namespaces:
+                    raise Exception("There's more than one cyd namespace: "+str(namespaces))
+                else:
+                    self.namespaces['cyd'] = n
             elif '/invest' in n:
                 if 'invest' in self.namespaces:
-                    raise Exception('There\'s more than one invest namespace: '+str(namespaces))
+                    raise Exception("There's more than one invest namespace: "+str(namespaces))
                 else:
                     self.namespaces['invest'] = n
             else:
                 if 'local' in self.namespaces:
-                    raise Exception('There\'s more than one local namespace: '+str(namespaces))
+                    logging.error("We already have a local namespace: "+self.namespaces['local']+" and we've found another one: "+n)	
+                    raise Exception("There's more than one local namespace: "+str(namespaces))
                 else:
                     self.namespaces['local'] = n
             
@@ -345,7 +353,7 @@ class XBRL:
             end = period.find('{http://www.xbrl.org/2003/instance}endDate')
                 
             if start is None or end is None:
-                log.warning('Exiting XBRL._parseXml because we haven\'t found instant nor startdate+enddate for context id='+id)
+                log.warning("Exiting XBRL._parseXml because we haven't found instant nor startdate+enddate for context id="+id)
             else:
                 context.start = start.text
                 context.end = end.text

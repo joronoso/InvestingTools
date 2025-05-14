@@ -8,11 +8,15 @@ import numpy as np
 import csv
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
+from dotenv import load_dotenv
+import os
 
+load_dotenv()
 
-dataFolder = './dataFiles/'
+dataFolder = os.getenv('DATA_DIR')
 base_url = 'https://www.sec.gov'
 re_xmlForm4 = re.compile('.*xml')
+SEC_USER_AGENT = os.getenv('SEC_USER_AGENT')
 
 def parseFiling(url):
     try:
@@ -22,11 +26,16 @@ def parseFiling(url):
         session.mount('http://', adapter)
         session.mount('https://', adapter)
     
-        page_content = session.get(base_url + url, headers={'User-agent': 'Mozilla/5.0'}).text 
+
+        page_content = session.get(base_url + url, headers={
+                "User-agent": SEC_USER_AGENT,
+                "Accept-Encoding": "gzip, deflate",
+                "Host": "www.sec.gov",
+            }).text 
         soup = BeautifulSoup(page_content, features='html.parser')
         tbl = soup.find('table', class_='tableFile') 
         for tr in tbl.find_all('tr'):
-            tds = tr.find_all('td');
+            tds = tr.find_all('td')
             if len(tds)<5: continue
             if re_xmlForm4.match(tds[2].string):
                 form4url = tds[2].find('a')['href']
@@ -46,20 +55,24 @@ class TransactionList:
                    (self.df['trxDate']==trxDate) & (self.df['trxAcquiredDisposed']==transactionAcquiredDisposedCode) & 
                    (self.df['shares']==shares) & (self.df['price']==price)  & (self.df['sharesAfterTrx']==sharesAfterTrx)]
             if dfCheck.empty: # Discard it if it's duplicated
-                self.df = self.df.append( { 'xmlUrl': xmlUrl, 
-                                            'reportingOwner': reportingOwner, 
-                                            'issuer': issuer, 
-                                            'securityTitle': securityTitle, 
-                                            'trxDate': trxDate, 
-                                            'trxAcquiredDisposed': transactionAcquiredDisposedCode, 
-                                            'shares': shares, 
-                                            'price': price,
-                                            'sharesAfterTrx': sharesAfterTrx, 
-                                            'reportingOwnerRelationship': reportingOwnerRelationship,
-                                            'trxCode': transactionCode,
-                                            'ticker': ticker,
-                                            'cik': cik}, ignore_index=True )
-                
+                new_row = pd.DataFrame([{
+                    'xmlUrl': xmlUrl,
+                    'reportingOwner': reportingOwner,
+                    'issuer': issuer,
+                    'securityTitle': securityTitle,
+                    'trxDate': trxDate,
+                    'trxAcquiredDisposed': transactionAcquiredDisposedCode,
+                    'shares': shares,
+                    'price': price,
+                    'sharesAfterTrx': sharesAfterTrx,
+                    'reportingOwnerRelationship': reportingOwnerRelationship,
+                    'trxCode': transactionCode,
+                    'ticker': ticker,
+                    'cik': cik
+                }])
+
+                self.df = pd.concat([self.df, new_row], ignore_index=True)
+
     # This method should be called at the end, when we already have all transactions.
     # Eliminate entries for issuers that only have Ds (sells)
     # We'll also calculate some additional columns
@@ -69,7 +82,7 @@ class TransactionList:
         self.df['totalAmount'] = self.df['shares'].astype(float) * self.df['price'].astype(float)
         self.df['totalConSigno'] = self.df['totalAmount'].astype(float) * sign
 
-        # Eliminamos las que no tienen m·s compras (en numero de acciones) que ventas
+        # Eliminamos las que no tienen mas compras (en numero de acciones) que ventas
         sums = self.df.groupby('issuer').sum()
         self.df = self.df[self.df['issuer'].isin(sums.loc[sums['sharesConSigno']>0].index)]
 
@@ -107,7 +120,11 @@ class TransactionList:
         
 def parseForm4Xml(xmlUrl, n=0):
     try:
-        xml = requests.get(base_url + xmlUrl, headers={'User-agent': 'Mozilla/5.0'}).text 
+        xml = requests.get(base_url + xmlUrl, headers={
+                "User-agent": SEC_USER_AGENT,
+                "Accept-Encoding": "gzip, deflate",
+                "Host": "www.sec.gov",
+            },).text 
     except:
         if n<3: return parseForm4Xml(xmlUrl, n+1)
         else: raise Exception('Exception in parseForm4Xml calling '+xmlUrl)
@@ -184,17 +201,21 @@ def parseForm4Xml(xmlUrl, n=0):
 
 #base_url = 'https://www.sec.gov/cgi-bin/current?q2=0&q3=10&q1='
 searchRecentUrl = base_url + '/cgi-bin/current?q2=0&q3=4&q1='
-re_linea = re.compile('(\d\d-\d\d-\d\d\d\d)\s+<a href="(.*?)">(.*?)</a>\s*<a href="(.*?)">(.*?)</a>\s*(.*)')
+re_linea = re.compile(r'(\d\d-\d\d-\d\d\d\d)\s+<a href="(.*?)">(.*?)</a>\s*<a href="(.*?)">(.*?)</a>\s*(.*)')
 
 transactions = TransactionList()
 for i in range(1):
     print(f"Vamos a buscar en {searchRecentUrl+str(i)}")
     time.sleep(.1) # La SEC se enfada si llamamos m√°s de 10 veces por segundo
-    page_content = requests.get(searchRecentUrl+str(i), headers={'User-agent': 'Mozilla/5.0'}).text
+    page_content = requests.get(searchRecentUrl+str(i), headers={
+                "User-agent": SEC_USER_AGENT,
+                "Accept-Encoding": "gzip, deflate",
+                "Host": "www.sec.gov",
+            },).text
    
     soup = BeautifulSoup(page_content, features='html.parser')
     chorizo = str(soup.find('pre'))
-    for line in re.split('<hr/>', chorizo)[1].splitlines():
+    for line in re.split('<hr/>', chorizo)[1].splitlines(): # REDUCIDO A 10 PARA PRUEBAS. QUITAR!!!
         grupetos = re_linea.match(line).groups()
         if grupetos[2]=='4': 
             time.sleep(.1) # SEC does not like it if we call more than 10 times per second.
@@ -209,8 +230,8 @@ for i in range(1):
     # df = pd.DataFrame(transactions)
     # df.columns =['reportingOwner', 'issuer', 'securityTitle', 'trxDate', 'transactionAcquiredDisposed', 'shares', 'price']
 transactions.complete()
-transactions.df.to_csv(dataFolder+'InsiderTrades_'+transactions.df['trxDate'].max()[0:10]+'.csv', index=False, quoting=csv.QUOTE_NONNUMERIC)
-
+transactions.df.to_csv(dataFolder+'InsiderTrades_'+str(transactions.df['trxDate'].max())[0:10]+'.csv', index=False, quoting=csv.QUOTE_NONNUMERIC)
+print(dataFolder+'InsiderTrades_'+str(transactions.df['trxDate'].max())[0:10]+'.csv')
 # Lo que se genera es un poco excesivo. Lo que podemos hacer:
     # Tirar directamente todas las entradas donde el precio es 0
     # A las Ds, ponerles el precio negativo.

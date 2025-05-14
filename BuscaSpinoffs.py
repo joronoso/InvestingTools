@@ -4,6 +4,7 @@ import re
 import requests
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
+import os
 
 base_url = 'https://www.sec.gov/cgi-bin/current?q2=0&q3=10&q1='
 re_linea = re.compile(r'(\d\d-\d\d-\d\d\d\d)\s+<a href="(.*?)">(.*?)</a>\s*<a href="(.*?)">(.*?)</a>\s*(.*)')
@@ -20,7 +21,7 @@ for i in range(20):
     time.sleep(.1) # La SEC se enfada si llamamos más de 10 veces por segundo
     print(f"Vamos a buscar en {base_url+str(i)}")
     page_content = session.get(base_url+str(i), headers={
-            "User-agent": "JoroBot joronoso@joronoso.net",
+            "User-agent": os.getenv('SEC_USER_AGENT'),
             "Accept-Encoding": "gzip, deflate",
             "Host": "www.sec.gov",
         }).text 
