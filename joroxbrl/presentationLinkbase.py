@@ -3,7 +3,6 @@ from treelib import Tree
 import treelib.exceptions
 import re
 import joroxbrl.core
-import requests
 import logging
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
@@ -64,7 +63,7 @@ class PresentationLinkbase:
         self.filingUrls = filingUrls
         
     
-    # xmlFile: pass xml file as a single string
+    # xml: pass xml file as a single string
     def readXml(self, xml):
         self.root = ET.fromstring(xml)
         
@@ -74,7 +73,7 @@ class PresentationLinkbase:
     def readXmlUrl(self, xmlUrl):
         self.readXml(joroxbrl.secGov.SecGovCaller.callSecGovUrl(xmlUrl).text)
         
-    # We will put a dict in the data antry of each node.
+    # We will put a dict in the data entry of each node.
     # The need of this is because the number of ids and relationships can get extremely convoluted:
     # - An item will have a loc entry in the presentation and calculation linkbases. Each of these entries has an href and a label.
     # - While the href is the same between both files, the label may not be.
@@ -125,7 +124,7 @@ class PresentationLinkbase:
                         logging.debug('Adding node: '+str(newNode.tag))
                         result.append(newNode)
                     except treelib.exceptions.DuplicatedNodeIdError:
-                        logging.error('Exception adding node '+href+' because it\'s duplicate')
+                        logging.error("Exception adding node "+href+" because it's duplicate")
 
             return result
         
@@ -146,11 +145,14 @@ class PresentationLinkbase:
 
         def _getSign(name):
             ret = None
-            label = getLabelFromHref(calRoot, name)
-            for arc in calRoot.iter('{http://www.xbrl.org/2003/linkbase}calculationArc'):
-                if arc.attrib['{http://www.w3.org/1999/xlink}to'] == label:
-                    ret = float(arc.attrib['weight'])
-                    break
+
+            if calRoot is not None:
+                label = getLabelFromHref(calRoot, name)
+                for arc in calRoot.iter('{http://www.xbrl.org/2003/linkbase}calculationArc'):
+                    if arc.attrib['{http://www.w3.org/1999/xlink}to'] == label:
+                        ret = float(arc.attrib['weight'])
+                        break
+
             if ret is None:
                 logging.warning('Could not find reference of '+name+' in calculation linkbase')
                 # If calculation linkbase doesn't help us, we'll try some aducated guesses
@@ -162,11 +164,17 @@ class PresentationLinkbase:
                     ret = 1.0
                 elif 'Asset' in name:
                     ret = -1.0
+                elif 'LeaseLiabilit' in name:
+                    ret = -1.0
                 elif 'Liabilit' in name:
                     ret = 1.0
                 elif 'OperatingCapital' in name:
                     ret = -1.0
                 elif 'DeferredIncomeTaxes' in name:
+                    ret = 1.0
+                elif 'IncomeTaxes' in name:
+                    ret = 1.0
+                elif 'AccruedSalar' in name:
                     ret = 1.0
                 else:
                     ret = -1.0
@@ -174,14 +182,14 @@ class PresentationLinkbase:
                     
             return ret
             
-        def _getTotalCwc(presentationTree, name_check):
+        def _getTotalCwc(name_check):
             total = 0
             logging.debug('Calculation of CWC:')
             ##  VAMOS A PROBAR QUE TAL VA ESTO
             #        for i in tree.children(tree.root): #tree.all_nodes():
             for i in tree.all_nodes():
                 logging.debug('Data: '+str(i.data))
-                logging.debug('Tag we\'lll get: '+i.data['presentationLabel']+'('+i.data['href']+')')
+                logging.debug("Tag we'll get: "+i.data['presentationLabel']+'('+i.data['href']+')')
                 label_name = i.data['href'].split('#')[-1]
                 u_label_name = label_name.split('_')[-1]
                 if name_check:
@@ -211,14 +219,17 @@ class PresentationLinkbase:
                         continue
     
                 logging.debug('KOKODATA: '+str(i.data))
-                logging.debug('The XBRL fact we\'ll look for: '+i.data['xbrlFact'])
+                logging.debug("The XBRL fact we'll look for: "+i.data['xbrlFact'])
                 actualFact = xbrl.getActualGlobalFact(i.data['xbrlFact'])
+                logging.debug("What we found in the xbrl: "+str(actualFact))
+                
                 if actualFact is None: # Added this because I've found cases where the presentation included facts that then were not in the XBRL
                     i.data['factValue'] = 0
                 else:
                     try:
                         i.data['factValue'] = int(_getSign(i.identifier)) * actualFact.getValueAsNumber()
-                    except: # This may kick in if we found a fact that contains a text block or something like that
+                    except Exception as ex: # This may kick in if we found a fact that contains a text block or something like that
+                        logging.warning(f'Exception in _getTotalCwc getting the value for {i.data['xbrlFact']}: '+str(ex))
                         i.data['factValue'] = 0
                         
                 total = total + i.data['factValue']
@@ -243,7 +254,7 @@ class PresentationLinkbase:
         for grouping in possibleCwcGroupings:
             tree = self._createPresentationTree( grouping[0] )
             if len(tree.children(tree.root))!=0: 
-                totalCwc = _getTotalCwc(tree, grouping[1])
+                totalCwc = _getTotalCwc(grouping[1])
                 if totalCwc!=0: break
             
         return totalCwc

@@ -77,11 +77,7 @@ class Filing:
             # We are going to download the submissions
             url = submissionsUrl+'CIK'+cik+'.json'
             try:
-                resp = requests.get(url, headers={
-                    "User-agent": os.getenv('SEC_USER_AGENT'),
-                    "Accept-Encoding": "gzip, deflate",
-                    "Host": "data.sec.gov",
-                },)
+                resp = joroxbrl.secGov.SecGovCaller.callSecGovUrl(url)
                 if resp.status_code == 200:
                     jSubm = resp.json()
                 else:

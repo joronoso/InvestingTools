@@ -12,9 +12,10 @@ from requests.adapters import HTTPAdapter
 import datetime
 import time
 import os
+import re
 
 _baseUrl = 'https://www.sec.gov'
-
+hostRegex = re.compile(r'^(https?://)?(([^\.]+\.)?sec\.gov)(/.*)?$')
 
 class SecGovCaller:
     
@@ -33,12 +34,19 @@ class SecGovCaller:
             cls._session.mount('http://', adapter)
             cls._session.mount('https://', adapter)
 
-        cls._callLimit()
+        hostMatch = hostRegex.match(url)
+        if hostMatch is None:
+            logging.warning(f"URL {url} is not actually sec.gov.")
+            host = 'www.sec.gov'
+            # We don't apply the call limit if the URL is not sec.gov
+        else:
+            host = hostMatch.group(2)
+            cls._callLimit()
 
         return cls._session.get(url, headers={
                 "User-agent": os.getenv('SEC_USER_AGENT'),
                 "Accept-Encoding": "gzip, deflate",
-                "Host": "www.sec.gov",
+                "Host": host
             })
     
     @classmethod

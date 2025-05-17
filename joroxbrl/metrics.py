@@ -73,7 +73,10 @@ class MetricCalculator:
                   'CostOfGoodsAndServicesSold',
                   'InterestExpenseBorrowings',
                   'InterestExpenseOther',
-                  'RegulatedAndUnregulatedOperatingRevenue']
+                  'RegulatedAndUnregulatedOperatingRevenue',
+                  'AdjustmentForAmortization',
+                  'AmortizationOfRegulatoryAsset'
+                ]
     
     def __init__(self, company=None):
          self.company = company
@@ -358,23 +361,37 @@ class MetricCalculator:
         if 'DepreciationDepletionAndAmortization' in self.facts: 
             depF = self.facts['DepreciationDepletionAndAmortization']
             addBackAmortizationOfIntangibles = True
+            logging.debug('AFCF - us-gaap:DepreciationDepletionAndAmortization: '+str(depF.value))
         elif 'DepreciationAndAmortization' in self.facts:
             depF = self.facts['DepreciationAndAmortization']
             addBackAmortizationOfIntangibles = True
+            logging.debug('AFCF - us-gaap:DepreciationAndAmortization: '+str(depF.value))
         elif 'Depreciation' in self.facts:
             depF = self.facts['Depreciation']
+            logging.debug('AFCF - us-gaap:Depreciation: '+str(depF.value))
             
         if depF is not None:    
             temp = temp - depF.getValueAsNumber()
-            logging.debug('AFCF - us-gaap:Depreciation(Depletion)AndAmortization: '+str(depF.value))
         else: 
             logging.warning('There is no Depreciation(Depletion)AndAmortization for '+self.company+'!!!')
 
         if addBackAmortizationOfIntangibles:
             # We don't want to add back amortization of intangibles if we haven't substracted total depreciation and amortization to begin with
             logging.debug('temp: '+str(temp))
+            amortInt = 0
             if 'AmortizationOfIntangibleAssets' in self.facts:
-                amortInt = self.facts['AmortizationOfIntangibleAssets'].getValueAsNumber()
+                amortInt += self.facts['AmortizationOfIntangibleAssets'].getValueAsNumber()
+            if 'AdjustmentForAmortization' in self.facts:
+                amortInt += self.facts['AdjustmentForAmortization'].getValueAsNumber()
+
+            if 'AmortizationOfRegulatoryAsset' in self.facts:
+                amortInt += self.facts['AmortizationOfRegulatoryAsset'].getValueAsNumber()
+
+            if amortInt == 0: 
+                logging.warning('There is no Amortization Of Intangibles for '+self.company+'!!!')
+                #print(self.facts)
+            else:
+                logging.debug('Amortization of intangibles: '+str(amortInt))
                 # I've seen cases (/Archives/edgar/data/1861795/000095017022003770/dh-20211231.htm)
                 #  in which the DepreciationDepletionAndAmortization didn't actually 
                 #  include amortization of intangibles. This is a hack, to take care of some cases.
@@ -382,9 +399,6 @@ class MetricCalculator:
                 #  calculation linkBases if amortization of intangibles had already been added.
                 if amortInt < temp:
                     temp = temp + amortInt
-                logging.debug('AFCF - us-gaap:AmortizationOfIntangibleAssets: '+str(self.facts['AmortizationOfIntangibleAssets'].value))
-            else: 
-                logging.warning('There is no AmortizationOfIntangibleAssets for '+self.company+'!!!')
             
         logging.debug('AFCF before undoing working capital changes: '+str(temp))
         # Reverse changes in working capital
@@ -396,6 +410,12 @@ class MetricCalculator:
                     xbrl = self.filing.getFilingUrls().getXbrl() )
         except Exception as ex:
             # I've seen this happen in cases where the calculation linkbase doesn't include this
+            # If the presentation linkbase doesn't exist as a standalone file, try to get the info from the xsd file
+            urls = self.filing.getFilingUrls()
+            presentationLinkbaseXsd = joroxbrl.presentationLinkbase.PresentationLinkbase(urls)
+            presentationLinkbaseXsd.readXml(joroxbrl.secGov.SecGovCaller.callSecGovUrl(  urls.getXsdUrl()).text)
+            cwc = presentationLinkbaseXsd.getChangesInOperatingCapital(None, urls.getXbrl())
+
             # A possible workaround could be to control that specific error, and then try
             #  to hardcode each of the typical values, and whether they should be positive or negative
             logging.error(str(ex)+' calculating CWC. Unfortunately will need to skip for '
