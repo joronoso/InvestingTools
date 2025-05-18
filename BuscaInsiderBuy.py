@@ -1,15 +1,17 @@
-import requests
 from bs4 import BeautifulSoup
 import re
 import xml.etree.ElementTree as ET
 import pandas as pd
-import time
 import numpy as np
 import csv
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 from dotenv import load_dotenv
 import os
+import joroxbrl.secGov
+import joroxbrl.secFiles
+import joroxbrl.metrics
+import logging
 
 load_dotenv()
 
@@ -20,18 +22,7 @@ SEC_USER_AGENT = os.getenv('SEC_USER_AGENT')
 
 def parseFiling(url):
     try:
-        session = requests.Session()
-        retry = Retry(connect=3, backoff_factor=0.5)
-        adapter = HTTPAdapter(max_retries=retry)
-        session.mount('http://', adapter)
-        session.mount('https://', adapter)
-    
-
-        page_content = session.get(base_url + url, headers={
-                "User-agent": SEC_USER_AGENT,
-                "Accept-Encoding": "gzip, deflate",
-                "Host": "www.sec.gov",
-            }).text 
+        page_content = joroxbrl.secGov.SecGovCaller.callSecGovUrl(base_url + url).text 
         soup = BeautifulSoup(page_content, features='html.parser')
         tbl = soup.find('table', class_='tableFile') 
         for tr in tbl.find_all('tr'):
@@ -115,16 +106,23 @@ class TransactionList:
                 f0 = f.iloc[0]
                 datepart = ' ('+str(f0['date'])+')' if f0['date']==f0['date'] else '' # Si una variable no es igual a si misma, tiene que ser NaN
                 self.df.loc[self.df['ticker']==i, 'comment'] = f0['opinion']+': '+f0['reason']+datepart
-                
-        
+
+        # Add metrics to entries without comments
+        unique_ciks = self.df.loc[self.df['comment'].isna(), 'cik'].unique()
+        for cik in [str(c) for c in unique_ciks]:
+            try:
+                filing = joroxbrl.secFiles.Filing.getLatestFiling(cik, '10-K')
+                m = joroxbrl.metrics.MetricCalculator()
+                m.genMetrics(filing)
+                # Add AFCF and PriceToAFCF to the DataFrame for the current cik
+                self.df.loc[self.df['cik'] == cik, 'AFCF'] = m.concepts.get('AFCF')
+                self.df.loc[self.df['cik'] == cik, 'PriceToAFCF'] = m.metrics.get('PriceToAFCF')
+            except Exception as e:
+                logging.warning(f"Error getting metrics for CIK {cik}: {e}")
         
 def parseForm4Xml(xmlUrl, n=0):
     try:
-        xml = requests.get(base_url + xmlUrl, headers={
-                "User-agent": SEC_USER_AGENT,
-                "Accept-Encoding": "gzip, deflate",
-                "Host": "www.sec.gov",
-            },).text 
+        xml = joroxbrl.secGov.SecGovCaller.callSecGovUrl(base_url + xmlUrl).text 
     except:
         if n<3: return parseForm4Xml(xmlUrl, n+1)
         else: raise Exception('Exception in parseForm4Xml calling '+xmlUrl)
@@ -206,22 +204,14 @@ re_linea = re.compile(r'(\d\d-\d\d-\d\d\d\d)\s+<a href="(.*?)">(.*?)</a>\s*<a hr
 transactions = TransactionList()
 for i in range(1):
     print(f"Vamos a buscar en {searchRecentUrl+str(i)}")
-    time.sleep(.1) # La SEC se enfada si llamamos más de 10 veces por segundo
-    page_content = requests.get(searchRecentUrl+str(i), headers={
-                "User-agent": SEC_USER_AGENT,
-                "Accept-Encoding": "gzip, deflate",
-                "Host": "www.sec.gov",
-            },).text
-   
+    page_content = joroxbrl.secGov.SecGovCaller.callSecGovUrl(searchRecentUrl+str(i)).text 
     soup = BeautifulSoup(page_content, features='html.parser')
     chorizo = str(soup.find('pre'))
-    for line in re.split('<hr/>', chorizo)[1].splitlines(): # REDUCIDO A 10 PARA PRUEBAS. QUITAR!!!
+    for line in re.split('<hr/>', chorizo)[1].splitlines():
         grupetos = re_linea.match(line).groups()
         if grupetos[2]=='4': 
-            time.sleep(.1) # SEC does not like it if we call more than 10 times per second.
             xmlUrl = parseFiling(grupetos[1])
             if xmlUrl is not None: 
-                time.sleep(.1) # SEC does not like it if we call more than 10 times per second.
                 newTrx = parseForm4Xml(xmlUrl)
                 if newTrx: 
                     for t in newTrx: transactions.addTrx(*t)
