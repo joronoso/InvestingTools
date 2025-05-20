@@ -115,7 +115,7 @@ class PresentationLinkbase:
                         newNode.data['presentationLabel'] = label
                         subHref = href.split('#')
                         if href[0:4] != 'http': # In this case xsd has to be taken from filingUrls
-                            logging.info('we will retrieve the xsd from filingUrls for '+href)
+                            logging.debug('we will retrieve the xsd from filingUrls for '+href)
                             ns = getNamespaceFromXsd(self.filingUrls.getXsdUrl())
                         else:
                             ns = getNamespaceFromXsd(subHref[0])
@@ -156,7 +156,11 @@ class PresentationLinkbase:
             if ret is None:
                 logging.warning('Could not find reference of '+name+' in calculation linkbase')
                 # If calculation linkbase doesn't help us, we'll try some aducated guesses
-                if 'Inventories' in name:
+                if 'DeferredRevenue' in name:
+                    ret = 1.0
+                elif 'OperatingLeaseLiabilities' in name:
+                    ret = 1.0
+                elif 'Inventories' in name:
                     ret = -1.0
                 elif 'Receivable' in name:
                     ret = -1.0
@@ -233,8 +237,8 @@ class PresentationLinkbase:
                         i.data['factValue'] = 0
                         
                 total = total + i.data['factValue']
-                logging.debug('Value added to CWC: '+i.data['xbrlFact']+': '+str(i.data['factValue']))
-            logging.debug('The total change in operating capital is '+str(total))
+                logging.info('Value added to CWC: '+i.data['xbrlFact']+': '+str(i.data['factValue']))
+            logging.info('The total change in operating capital is '+str(total))
             return total
         
         possibleCwcGroupings = [

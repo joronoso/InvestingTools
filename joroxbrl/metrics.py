@@ -337,21 +337,21 @@ class MetricCalculator:
         logging.debug('temp: '+str(temp))
         if 'NetCashProvidedByUsedInOperatingActivities' in self.facts:
             temp = self.facts['NetCashProvidedByUsedInOperatingActivities'].getValueAsNumber()
-            logging.debug('AFCF - us-gaap:NetCashProvidedByUsedInOperatingActivities: '+str(self.facts['NetCashProvidedByUsedInOperatingActivities'].value))
+            logging.info('AFCF - us-gaap:NetCashProvidedByUsedInOperatingActivities: '+str(self.facts['NetCashProvidedByUsedInOperatingActivities'].value))
         elif 'NetCashProvidedByUsedInOperatingActivitiesContinuingOperations' in self.facts:
             temp = self.facts['NetCashProvidedByUsedInOperatingActivitiesContinuingOperations'].getValueAsNumber()
-            logging.debug('AFCF - us-gaap:NetCashProvidedByUsedInOperatingActivitiesContinuingOperations: '+str(self.facts['NetCashProvidedByUsedInOperatingActivitiesContinuingOperations'].value))
+            logging.info('AFCF - us-gaap:NetCashProvidedByUsedInOperatingActivitiesContinuingOperations: '+str(self.facts['NetCashProvidedByUsedInOperatingActivitiesContinuingOperations'].value))
         elif 'NetCashProvidedByUsedInContinuingOperations' in self.facts:
             # I'm not sure this shoud be right, but found it used in /Archives/edgar/data/1587523/000158752322000005/kn-20211231.htm#i8a37b74de9684c71b86678064fae9900_61
             temp = self.facts['NetCashProvidedByUsedInContinuingOperations'].getValueAsNumber()
-            logging.debug('AFCF - us-gaap:NetCashProvidedByUsedInContinuingOperations: '+str(self.facts['NetCashProvidedByUsedInContinuingOperations'].value))
+            logging.info('AFCF - us-gaap:NetCashProvidedByUsedInContinuingOperations: '+str(self.facts['NetCashProvidedByUsedInContinuingOperations'].value))
         else: 
             logging.warning('There is no NetCashProvidedByUsedInOperatingActivities for '+self.company+'!!!')
 
         logging.debug('temp: '+str(temp))
         if 'ShareBasedCompensation' in self.facts:
             temp = temp - self.facts['ShareBasedCompensation'].getValueAsNumber()
-            logging.debug('AFCF - us-gaap:ShareBasedCompensation: '+str(self.facts['ShareBasedCompensation'].value))
+            logging.info('AFCF - us-gaap:ShareBasedCompensation: '+str(self.facts['ShareBasedCompensation'].value))
         else: 
             logging.warning('There is no ShareBasedCompensation for '+self.company+'!!!')
             
@@ -361,14 +361,14 @@ class MetricCalculator:
         if 'DepreciationDepletionAndAmortization' in self.facts: 
             depF = self.facts['DepreciationDepletionAndAmortization']
             addBackAmortizationOfIntangibles = True
-            logging.debug('AFCF - us-gaap:DepreciationDepletionAndAmortization: '+str(depF.value))
+            logging.info('AFCF - us-gaap:DepreciationDepletionAndAmortization: '+str(depF.value))
         elif 'DepreciationAndAmortization' in self.facts:
             depF = self.facts['DepreciationAndAmortization']
-            addBackAmortizationOfIntangibles = True
-            logging.debug('AFCF - us-gaap:DepreciationAndAmortization: '+str(depF.value))
+            addBackAmortizationOfIntangibles = False
+            logging.info('AFCF - us-gaap:DepreciationAndAmortization: '+str(depF.value))
         elif 'Depreciation' in self.facts:
             depF = self.facts['Depreciation']
-            logging.debug('AFCF - us-gaap:Depreciation: '+str(depF.value))
+            logging.info('AFCF - us-gaap:Depreciation: '+str(depF.value))
             
         if depF is not None:    
             temp = temp - depF.getValueAsNumber()
@@ -391,7 +391,7 @@ class MetricCalculator:
                 logging.warning('There is no Amortization Of Intangibles for '+self.company+'!!!')
                 #print(self.facts)
             else:
-                logging.debug('Amortization of intangibles: '+str(amortInt))
+                logging.info('Amortization of intangibles: '+str(amortInt))
                 # I've seen cases (/Archives/edgar/data/1861795/000095017022003770/dh-20211231.htm)
                 #  in which the DepreciationDepletionAndAmortization didn't actually 
                 #  include amortization of intangibles. This is a hack, to take care of some cases.
@@ -400,14 +400,14 @@ class MetricCalculator:
                 if amortInt < temp:
                     temp = temp + amortInt
             
-        logging.debug('AFCF before undoing working capital changes: '+str(temp))
+        logging.info('AFCF before undoing working capital changes: '+str(temp))
         # Reverse changes in working capital
         cwc = 0
         try:
             plb = self.filing.getFilingUrls().getPresentationLinkbase()
             cwc = plb.getChangesInOperatingCapitalFromStrings(
-                    joroxbrl.secGov.SecGovCaller.callSecGovUrl(self.filing.getFilingUrls().getCalculationLinkbaseUrl()).text, 
-                    xbrl = self.filing.getFilingUrls().getXbrl() )
+                joroxbrl.secGov.SecGovCaller.callSecGovUrl(self.filing.getFilingUrls().getCalculationLinkbaseUrl()).text, 
+                xbrl = self.filing.getFilingUrls().getXbrl() )
         except Exception as ex:
             # I've seen this happen in cases where the calculation linkbase doesn't include this
             # If the presentation linkbase doesn't exist as a standalone file, try to get the info from the xsd file
@@ -418,8 +418,9 @@ class MetricCalculator:
 
             # A possible workaround could be to control that specific error, and then try
             #  to hardcode each of the typical values, and whether they should be positive or negative
-            logging.error(str(ex)+' calculating CWC. Unfortunately will need to skip for '
-                          +self.filing.cik+'-'+self.filing.accessionNumber)
+            if cwc == 0:
+                logging.error(str(ex)+' calculating CWC. Unfortunately will need to skip for '
+                    +self.filing.cik+'-'+self.filing.accessionNumber)
             
         if cwc==0:
             if 'IncreaseDecreaseInOperatingCapital' in self.facts:
@@ -530,7 +531,7 @@ class PolygonCaller:
         # In some cases, when SEC includes a - in the ticker, Polygon prefers a .
         ticker = ticker.replace('-', '.')
         params = {'date': date} if date is not None else {}
-        return polygon.RESTClient(os.getenv('POLYGON_KEY')).get_ticker_details(ticker, date=date, params=params)
+        return polygon.RESTClient(os.getenv('POLYGON_KEY')).get_ticker_details(ticker, date=date) #, params=params)
     
     @classmethod
     def _callLimit(cls):
