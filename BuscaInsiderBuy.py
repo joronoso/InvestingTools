@@ -1,4 +1,5 @@
 from bs4 import BeautifulSoup
+import datetime
 import re
 import xml.etree.ElementTree as ET
 import pandas as pd
@@ -220,6 +221,19 @@ for i in range(1):
     # df = pd.DataFrame(transactions)
     # df.columns =['reportingOwner', 'issuer', 'securityTitle', 'trxDate', 'transactionAcquiredDisposed', 'shares', 'price']
 transactions.complete()
+
+# Generate new_filters DataFrame
+today = datetime.date.today().strftime('%Y-%m-%d')
+new_filters = transactions.df[transactions.df['PriceToAFCF'].notna()][['issuer', 'ticker', 'PriceToAFCF']].drop_duplicates()
+new_filters['opinion'] = new_filters['PriceToAFCF'].apply(lambda x: 'BEAR' if x < 0 or x > 15 else ('MID' if 10 <= x <= 15 else 'BULL'))
+new_filters['reason'] = 'P/AFCF~=' + new_filters['PriceToAFCF'].astype(str)
+new_filters['date'] = today
+new_filters = new_filters.rename(columns={'issuer': 'company'})
+
+# Write new_filters to CSV
+new_filters.to_csv(dataFolder+'new_filters_'+today+'.csv', index=False, quoting=csv.QUOTE_NONNUMERIC)
+print(dataFolder+'new_filters_'+today+'.csv')
+
 transactions.df.to_csv(dataFolder+'InsiderTrades_'+str(transactions.df['trxDate'].max())[0:10]+'.csv', index=False, quoting=csv.QUOTE_NONNUMERIC)
 print(dataFolder+'InsiderTrades_'+str(transactions.df['trxDate'].max())[0:10]+'.csv')
 # Lo que se genera es un poco excesivo. Lo que podemos hacer:
