@@ -222,6 +222,16 @@ for i in range(1):
     # df.columns =['reportingOwner', 'issuer', 'securityTitle', 'trxDate', 'transactionAcquiredDisposed', 'shares', 'price']
 transactions.complete()
 
+
+transactions.df.to_csv(dataFolder+'InsiderTrades_'+str(transactions.df['trxDate'].max())[0:10]+'.csv', index=False, quoting=csv.QUOTE_NONNUMERIC)
+print(dataFolder+'InsiderTrades_'+str(transactions.df['trxDate'].max())[0:10]+'.csv')
+# Lo que se genera es un poco excesivo. Lo que podemos hacer:
+    # Tirar directamente todas las entradas donde el precio es 0
+    # A las Ds, ponerles el precio negativo.
+    # Guardar hashes por empresa:
+        # La empresa donde todo sean Ds, tirarla entera
+        # Eliminar entradas que tengan todos los parámetros idénticos
+
 # Generate new_filters DataFrame
 today = datetime.date.today().strftime('%Y-%m-%d')
 new_filters = transactions.df[transactions.df['PriceToAFCF'].notna()][['issuer', 'ticker', 'PriceToAFCF']].drop_duplicates()
@@ -233,13 +243,3 @@ new_filters = new_filters.rename(columns={'issuer': 'company'})
 # Write new_filters to CSV
 new_filters.to_csv(dataFolder+'new_filters_'+today+'.csv', index=False, quoting=csv.QUOTE_NONNUMERIC)
 print(dataFolder+'new_filters_'+today+'.csv')
-
-transactions.df.to_csv(dataFolder+'InsiderTrades_'+str(transactions.df['trxDate'].max())[0:10]+'.csv', index=False, quoting=csv.QUOTE_NONNUMERIC)
-print(dataFolder+'InsiderTrades_'+str(transactions.df['trxDate'].max())[0:10]+'.csv')
-# Lo que se genera es un poco excesivo. Lo que podemos hacer:
-    # Tirar directamente todas las entradas donde el precio es 0
-    # A las Ds, ponerles el precio negativo.
-    # Guardar hashes por empresa:
-        # La empresa donde todo sean Ds, tirarla entera
-        # Eliminar entradas que tengan todos los parámetros idénticos
-
