@@ -75,7 +75,7 @@ class TransactionList:
         self.df['totalConSigno'] = self.df['totalAmount'].astype(float) * sign
 
         # Eliminamos las que no tienen mas compras (en numero de acciones) que ventas
-        sums = self.df.groupby('issuer').sum()
+        sums = self.df.groupby('issuer').sum(numeric_only=True)
         self.df = self.df[self.df['issuer'].isin(sums.loc[sums['sharesConSigno']>0].index)]
 
         # Ahora vamos a marcar los que parezca que han comprado a precios no de mercado
