@@ -235,10 +235,12 @@ print(dataFolder+'InsiderTrades_'+str(transactions.df['trxDate'].max())[0:10]+'.
 # Generate new_filters DataFrame
 today = datetime.date.today().strftime('%Y-%m-%d')
 new_filters = transactions.df[transactions.df['PriceToAFCF'].notna()][['issuer', 'ticker', 'PriceToAFCF']].drop_duplicates()
-new_filters['opinion'] = new_filters['PriceToAFCF'].apply(lambda x: 'BEAR' if x < 0 or x > 15 else ('MID' if 10 <= x <= 15 else 'BULL'))
-new_filters['reason'] = 'P/AFCF~=' + new_filters['PriceToAFCF'].astype(str)
+new_filters['opinion'] = new_filters['PriceToAFCF'].apply(lambda x: 'BEAR' if x <= 0 or x > 15 else ('MID' if 10 <= x <= 15 else 'BULL'))
+new_filters['RoundPriceToAFCF'] = new_filters['PriceToAFCF'].round().astype(int)
+new_filters['reason'] = new_filters['RoundPriceToAFCF'].apply(lambda x: 'No es rentable' if x <= 0 else 'P/AFCF~=' + str(x))
 new_filters['date'] = today
 new_filters = new_filters.rename(columns={'issuer': 'company'})
+new_filters = new_filters.drop(columns=['PriceToAFCF', 'RoundPriceToAFCF'])
 
 # Write new_filters to CSV
 new_filters.to_csv(dataFolder+'new_filters_'+today+'.csv', index=False, quoting=csv.QUOTE_NONNUMERIC)
