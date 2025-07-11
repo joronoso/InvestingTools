@@ -84,7 +84,7 @@ class TransactionList:
         sums = sums0.groupby(['issuer', 'trxAcquiredDisposed']).sum()
         sums['precioMedio'] = sums['totalConSigno'] / sums['sharesConSigno']
         
-        self.df['comment'] = np.nan
+        self.df['comment'] = None
         
         for iss in issuers_wAD:
             if sums.loc[iss, 'A']['precioMedio']*1.5 <  sums.loc[iss, 'D']['precioMedio']:
@@ -109,6 +109,11 @@ class TransactionList:
                 self.df.loc[self.df['ticker']==i, 'comment'] = f0['opinion']+': '+f0['reason']+datepart
 
         # Add metrics to entries without comments
+        
+        # Create empty columns for metrics, so that if none apply it nothing breaks
+        self.df['AFCF'] = np.nan
+        self.df['PriceToAFCF'] = np.nan
+
         unique_ciks = self.df.loc[self.df['comment'].isna(), 'cik'].unique()
         for cik in [str(c) for c in unique_ciks]:
             try:
@@ -243,5 +248,5 @@ new_filters = new_filters.rename(columns={'issuer': 'company'})
 new_filters = new_filters.drop(columns=['PriceToAFCF', 'RoundPriceToAFCF'])
 
 # Write new_filters to CSV
-new_filters.to_csv(dataFolder+'new_filters_'+today+'.csv', index=False, quoting=csv.QUOTE_NONNUMERIC)
-print(dataFolder+'new_filters_'+today+'.csv')
+new_filters.to_csv(dataFolder+'new_filters.csv', index=False, quoting=csv.QUOTE_NONNUMERIC)
+print(dataFolder+'new_filters.csv')
