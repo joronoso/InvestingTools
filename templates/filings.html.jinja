@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Filings</title>
+    </head>
+    <body>
+        <h1>Companies</h1>
+        <ul>
+            {% for item in company_filing_lists %}
+                <li>
+                    {{ item.company.name }} ({{ item.company.ticker }}) - {{ item.company.cik }}</a>
+                </li>
+            {% endfor %}
+        </ul>
+
+    {# note: commented-out template 
+        <h1>Recent Filings</h1>
+        <ul>
+            {% for filing in filings %}
+                <li>
+                    <a href="{{ url_for('filing_detail', cik=filing.cik, accession_number=filing.accession_number) }}">
+                        {{ filing.form_type }} - {{ filing.date_filed }}
+                    </a>
+                </li>
+            {% endfor %}
+        </ul>
+
+        <h1>Filings per company</h1>
+        {% for company in companies %}
+            <h2>{{ company.name }} ({{ company.ticker }})</h2>
+            <ul>
+                {% for filing in company.filings %}
+                    <li>
+                        <a href="{{ url_for('filing_detail', cik=company.cik, accession_number=filing.accession_number) }}">
+                            {{ filing.form_type }} - {{ filing.date_filed }}
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endfor %}
+
+    #}    
+    </body>
+</html>
