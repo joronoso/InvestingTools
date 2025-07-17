@@ -8,9 +8,12 @@ import sys
 import os
 companyfactsDir = None #'secInfo/companyfacts/' # If left empty, it will be retrieved from the SEC
 submissionsDir = None #'secInfo/submissions/' # If left empty, it will be retrieved from the SEC
+companyTickersDir = os.getenv('COMPANY_TICKERS_DIR')
 companyfactsUrl = 'https://data.sec.gov/api/xbrl/companyfacts/'
 submissionsUrl = 'https://data.sec.gov/submissions/'
 secDocAccessUrl = 'https://www.sec.gov/Archives/edgar/data/'
+companyTickersUrl = 'https://www.sec.gov/files/company_tickers.json'
+print(companyTickersDir)
 
 class Filing:
     """
@@ -238,3 +241,66 @@ def getTickersFromCIK(cik: str) -> list[str]:
     cik = Filing.correctCIK(cik)
     jSubms = Filing.getSubmission(cik)
     return jSubms['tickers']
+
+def storeCompanyTickers() -> dict:
+    if not companyTickersDir:
+        logging.error('joroxbrl.secFiles.storeCompanyTickers: COMPANY_TICKERS_DIR environment variable is not set')
+        return None
+    
+    # We are going to download the company tickers file
+    try:
+        resp = requests.get(companyTickersUrl, headers={
+            "User-agent": os.getenv('SEC_USER_AGENT'),
+            "Accept-Encoding": "gzip, deflate",
+            "Host": "www.sec.gov",
+        })
+        if resp.status_code == 200:
+            open(companyTickersDir+'company_tickers.json', 'w').write(resp.text)
+            jTickers = resp.json()
+
+        else:
+            logging.error('joroxbrl.secFiles.getCompanyTickers: Could not download company tickers file from '+companyTickersUrl)
+            logging.debug(resp)
+            return None
+    except Exception as e:
+        logging.error(e+'\njoroxbrl.secFiles.getCompanyTickers: Could not download company tickers file')
+        return None
+
+    companyTickersByTicker = {}
+    for t in jTickers.values():
+        companyTickersByTicker[t['ticker']] = t
+    
+    open(companyTickersDir+'company_tickers_by_ticker.json', 'w').write(json.dumps(companyTickersByTicker, indent=2))
+    return companyTickersByTicker
+    
+def getCikFromTickers(tickers: list[str]) -> list[str]:
+    if not companyTickersDir:
+        logging.error('joroxbrl.secFiles.getCikFromTickers: COMPANY_TICKERS_DIR environment variable is not set')
+        return []
+    if not os.path.exists(companyTickersDir):
+        logging.error('joroxbrl.secFiles.getCikFromTickers: COMPANY_TICKERS_DIR does not exist: '+companyTickersDir)
+        return []
+    
+    cikList = []
+    with open(companyTickersDir+'company_tickers_by_ticker.json') as jFile:
+        jTickers = json.load(jFile)
+    for t in tickers:
+        if t in jTickers:
+            cikList.append(jTickers[t]['cik_str'])
+    return cikList
+
+def getCikFromTickersAsDict(tickers: list[str]) -> dict[str, str]:
+    if not companyTickersDir:
+        logging.error('joroxbrl.secFiles.getCikFromTickers: COMPANY_TICKERS_DIR environment variable is not set')
+        return []
+    if not os.path.exists(companyTickersDir):
+        logging.error('joroxbrl.secFiles.getCikFromTickers: COMPANY_TICKERS_DIR does not exist: '+companyTickersDir)
+        return []
+    
+    cikDict = {}
+    with open(companyTickersDir+'company_tickers_by_ticker.json') as jFile:
+        jTickers = json.load(jFile)
+    for t in tickers:
+        if t in jTickers:
+            cikDict[t] = jTickers[t]['cik_str']
+    return cikDict
