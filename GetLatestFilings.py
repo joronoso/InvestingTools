@@ -1,8 +1,13 @@
 import datetime
 import json as jsonlib
+from jinja2 import Environment, FileSystemLoader
+import os
+import webbrowser
+from dotenv import load_dotenv
+load_dotenv()
+
 import joroxbrl.secGov
 import joroxbrl.secFiles
-from jinja2 import Environment, FileSystemLoader
 
 class GlobalFilingListAdder:
 
@@ -20,19 +25,30 @@ class GlobalFilingListAdder:
             'filings': [filing]
         })
 
+dataFolder = os.getenv('DATA_DIR')
 # How many days of filings to fetch
 number_of_days = 30
 
 companies = [
     {
-        "ticker": "AAPL",
-        "name": "Apple Inc.",
-        "cik": "320193",
+        "ticker": "RPAY",
+        "name": "Repay Holdings Corp",
+        "cik": "1720592",
     },
     {
         "ticker": "CURV",
         "name": "Torrid Holdings Inc.",
         "cik": "1792781",
+    },
+    {
+        "ticker": "CODI",
+        "name": "Compass Diversified Holdings",
+        "cik": "1345126",
+    },
+    {
+        "ticker": "GLNG",
+        "name": "Golar LNG Ltd",
+        "cik": "1207179",
     },
 ]
 
@@ -98,4 +114,9 @@ for company in companies:
 env = Environment(loader=FileSystemLoader('templates'))
 template = env.get_template('filings.html.jinja')
 output = template.render(company_filing_lists = company_filing_lists, global_filing_list=global_filing_list)
-print(output)
+output_filename = f"LatestFilings_{datetime.date.today().isoformat()}.html"
+output_path = os.path.join(dataFolder, output_filename)
+with open(output_path, "w", encoding="utf-8") as f:
+    f.write(output)
+
+webbrowser.open_new_tab(f"file://{output_path}")

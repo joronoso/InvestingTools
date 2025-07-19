@@ -8,37 +8,51 @@
         <ul>
             {% for item in company_filing_lists %}
                 <li>
-                    {{ item.company.name }} ({{ item.company.ticker }}) - {{ item.company.cik }}</a>
+                    <a href="#i{{item.company.cik}}">{{ item.company.name }} ({{ item.company.ticker }}) - {{ item.company.cik }}</a>
                 </li>
             {% endfor %}
         </ul>
 
-    {# note: commented-out template 
         <h1>Recent Filings</h1>
-        <ul>
-            {% for filing in filings %}
-                <li>
-                    <a href="{{ url_for('filing_detail', cik=filing.cik, accession_number=filing.accession_number) }}">
-                        {{ filing.form_type }} - {{ filing.date_filed }}
-                    </a>
-                </li>
+        <table>
+            <tr>
+                <th>Company</th>
+                <th>Filing Date</th>
+                <th>Form</th>
+                <th>Report Date</th>
+                <th></th>
+            </tr>
+            {% for item in global_filing_list %}
+            <tr>
+                <td>{{ item.company.name }} ({{ item.company.ticker }}) - {{ item.company.cik }}</td>
+                <td>{{item.filings[0].filingDate}}</td>
+                <td>{{item.filings[0].form}}</td>
+                <td>{{item.filings[0].reportDate}}</td>
+                <td><a target="_blank" href="https://www.sec.gov/Archives/edgar/data/{{item.company.cik}}/{{item.filings[0].accessionNumber}}/{{item.filings[0].accessionNumber}}-index.htm">item</a>
+            </tr>
             {% endfor %}
-        </ul>
+        </table>
 
         <h1>Filings per company</h1>
-        {% for company in companies %}
-            <h2>{{ company.name }} ({{ company.ticker }})</h2>
-            <ul>
-                {% for filing in company.filings %}
-                    <li>
-                        <a href="{{ url_for('filing_detail', cik=company.cik, accession_number=filing.accession_number) }}">
-                            {{ filing.form_type }} - {{ filing.date_filed }}
-                        </a>
-                    </li>
-                {% endfor %}
-            </ul>
+        {% for item in company_filing_lists %}
+        <h2 id="i{{item.company.cik}}">{{ item.company.name }} ({{ item.company.ticker }}) - {{ item.company.cik }}</h2>
+        <table>
+            <tr>
+                <th>Filing Date</th>
+                <th>Form</th>
+                <th>Report Date</th>
+                <th></th>
+            </tr>
+            {% for filing in item.filings %}
+            <tr>
+                <td>{{filing.filingDate}}</td>
+                <td>{{filing.form}}</td>
+                <td>{{filing.reportDate}}</td>
+                <td><a target="_blank" href="https://www.sec.gov/Archives/edgar/data/{{item.company.cik}}/{{filing.accessionNumber}}/{{filing.accessionNumber}}-index.htm">item</a>
+            </tr>
+            {% endfor %}
+        </table>
         {% endfor %}
 
-    #}    
     </body>
 </html>
