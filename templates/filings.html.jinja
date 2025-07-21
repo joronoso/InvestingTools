@@ -5,53 +5,62 @@
     </head>
     <body>
         <h1>Companies</h1>
-        <ul>
-            {% for item in company_filing_lists %}
+        {% for list_name in company_list_names %}
+            <h2>{{list_name}}</h2>
+            <ul>
+            {% for item in company_filing_lists[list_name] %}
                 <li>
                     <a href="#i{{item.company.cik}}">{{ item.company.name }} ({{ item.company.ticker }}) - {{ item.company.cik }}</a>
                 </li>
             {% endfor %}
-        </ul>
+            </ul>
+        {% endfor %}
 
         <h1>Recent Filings</h1>
-        <table>
-            <tr>
-                <th>Company</th>
-                <th>Filing Date</th>
-                <th>Form</th>
-                <th>Report Date</th>
-                <th></th>
-            </tr>
-            {% for item in global_filing_list %}
-            <tr>
-                <td>{{ item.company.name }} ({{ item.company.ticker }}) - {{ item.company.cik }}</td>
-                <td>{{item.filings[0].filingDate}}</td>
-                <td>{{item.filings[0].form}}</td>
-                <td>{{item.filings[0].reportDate}}</td>
-                <td><a target="_blank" href="https://www.sec.gov/Archives/edgar/data/{{item.company.cik}}/{{item.filings[0].accessionNumber}}/{{item.filings[0].accessionNumber}}-index.htm">item</a>
-            </tr>
-            {% endfor %}
-        </table>
+        {% for list_name in company_list_names %}
+            <h2>{{list_name}}</h2>
+            <table>
+                <tr>
+                    <th>Company</th>
+                    <th>Filing Date</th>
+                    <th>Form</th>
+                    <th>Report Date</th>
+                    <th></th>
+                </tr>
+                {% for item in global_filing_list[list_name] %}
+                <tr>
+                    <td>{{ item.company.name }} ({{ item.company.ticker }}) - {{ item.company.cik }}</td>
+                    <td>{{item.filings[0].filingDate}}</td>
+                    <td>{{item.filings[0].form}}</td>
+                    <td>{{item.filings[0].reportDate}}</td>
+                    <td><a target="_blank" href="https://www.sec.gov/Archives/edgar/data/{{item.company.cik}}/{{item.filings[0].accessionNumber}}/{{item.filings[0].accessionNumber}}-index.htm">item</a>
+                </tr>
+                {% endfor %}
+            </table>
+        {% endfor %}
 
         <h1>Filings per company</h1>
-        {% for item in company_filing_lists %}
-        <h2 id="i{{item.company.cik}}">{{ item.company.name }} ({{ item.company.ticker }}) - {{ item.company.cik }}</h2>
-        <table>
-            <tr>
-                <th>Filing Date</th>
-                <th>Form</th>
-                <th>Report Date</th>
-                <th></th>
-            </tr>
-            {% for filing in item.filings %}
-            <tr>
-                <td>{{filing.filingDate}}</td>
-                <td>{{filing.form}}</td>
-                <td>{{filing.reportDate}}</td>
-                <td><a target="_blank" href="https://www.sec.gov/Archives/edgar/data/{{item.company.cik}}/{{filing.accessionNumber}}/{{filing.accessionNumber}}-index.htm">item</a>
-            </tr>
+        {% for list_name in company_list_names %}
+            <h2>{{list_name}}</h2>
+            {% for item in company_filing_lists[list_name] %}
+                <h3 id="i{{item.company.cik}}">{{ item.company.name }} ({{ item.company.ticker }}) - {{ item.company.cik }}</h3>
+                <table>
+                    <tr>
+                        <th>Filing Date</th>
+                        <th>Form</th>
+                        <th>Report Date</th>
+                        <th></th>
+                    </tr>
+                    {% for filing in item.filings %}
+                    <tr>
+                        <td>{{filing.filingDate}}</td>
+                        <td>{{filing.form}}</td>
+                        <td>{{filing.reportDate}}</td>
+                        <td><a target="_blank" href="https://www.sec.gov/Archives/edgar/data/{{item.company.cik}}/{{filing.accessionNumber}}/{{filing.accessionNumber}}-index.htm">item</a>
+                    </tr>
+                    {% endfor %}
+                </table>
             {% endfor %}
-        </table>
         {% endfor %}
 
     </body>
